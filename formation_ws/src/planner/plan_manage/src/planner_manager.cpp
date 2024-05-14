@@ -424,11 +424,14 @@ namespace ego_planner
       const Eigen::Vector3d &start_acc, const std::vector<Eigen::Vector3d> &waypoints,
       const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc)
   {
-
+    // 定义MinJerk轨迹, 用于优化
     poly_traj::MinJerkOpt globalMJO;
+    // 初状态 末状态
     Eigen::Matrix<double, 3, 3> headState, tailState;
     headState << start_pos, start_vel, start_acc;
+    // 末状态为最后一个航点
     tailState << waypoints.back(), end_vel, end_acc;
+    // 在初末状态之间的航点
     Eigen::MatrixXd innerPts;
 
     if (waypoints.size() > 1)
@@ -448,21 +451,28 @@ namespace ego_planner
       }
     }
 
+    // 初始化 globalMJO: 初状态 末状态 轨迹段数
     globalMJO.reset(headState, tailState, waypoints.size());
 
+    // 设一个des_vel, 用来初始化每段轨迹的时间
     double des_vel = pp_.max_vel_ / 1.5;
+
+    // 时间向量
     Eigen::VectorXd time_vec(waypoints.size());
 
     for (int j = 0; j < 2; ++j)
     {
       for (size_t i = 0; i < waypoints.size(); ++i)
       {
+        // 每段轨迹的初始时间 = 直线距离 / des_vel 
         time_vec(i) = (i == 0) ? (waypoints[0] - start_pos).norm() / des_vel
                                : (waypoints[i] - waypoints[i - 1]).norm() / des_vel;
       }
 
+      // 生成轨迹 具体需要看论文
       globalMJO.generate(innerPts, time_vec);
 
+      // 这个if还不懂
       if (globalMJO.getTraj().getMaxVelRate() < pp_.max_vel_ ||
           start_vel.norm() > pp_.max_vel_ ||
           end_vel.norm() > pp_.max_vel_)
@@ -483,9 +493,12 @@ namespace ego_planner
     }
 
     auto time_now = ros::Time::now();
+
+    // traj_ 储存得到轨迹，之后会继续用
     traj_.setGlobalTraj(globalMJO.getTraj(), time_now.toSec());
 
     return true;
+
   }
 
 } // namespace ego_planner

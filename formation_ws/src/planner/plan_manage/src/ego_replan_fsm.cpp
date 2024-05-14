@@ -140,6 +140,7 @@ namespace ego_planner
 
     case WAIT_TARGET:
     {
+      // planNextWaypoint 会把 have_target_ 置为 true
       if (!have_target_ || !have_trigger_)
         goto force_return; // return;
       else
@@ -151,8 +152,10 @@ namespace ego_planner
 
     case SEQUENTIAL_START: // for swarm or single drone with drone_id = 0
     {
+      // 每个无人机需要等待前一个无人机规划出轨迹后再启动，避免碰撞
       if (planner_manager_->pp_.drone_id <= 0 || (planner_manager_->pp_.drone_id >= 1 && have_recv_pre_agent_))
       {
+        // 
         bool success = planFromGlobalTraj(10); // zx-todo
         if (success)
         {
@@ -639,14 +642,16 @@ namespace ego_planner
 
   void EGOReplanFSM::planNextWaypoint(const Eigen::Vector3d next_wp, const Eigen::Vector3d previous_wp)
   {
+    // 算编队的朝向
     Eigen::Vector3d dir = (next_wp - previous_wp).normalized();
     end_pt_ = next_wp + Eigen::Vector3d(dir(0) * formation_pos_(0) - dir(1) * formation_pos_(1),
                                         dir(1) * formation_pos_(0) + dir(0) * formation_pos_(1),
                                         formation_pos_(2));
-
     bool success = false;
     std::vector<Eigen::Vector3d> one_pt_wps;
     one_pt_wps.push_back(end_pt_);
+
+    // 根据初始waypoints 规划初始全局轨迹
     success = planner_manager_->planGlobalTrajWaypoints(
         odom_pos_, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
         one_pt_wps, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
@@ -656,15 +661,20 @@ namespace ego_planner
     if (success)
     {
 
-      /*** display ***/
+      // 采样步长
       constexpr double step_size_t = 0.1;
+
+      // traj_.global_traj 即 planGlobalTrajWaypoints 得到的初始全局轨迹
       int i_end = floor(planner_manager_->traj_.global_traj.duration / step_size_t);
+
+      // 将 global_traj 离散为 i_end 个点，用于可视化
       vector<Eigen::Vector3d> gloabl_traj(i_end);
       for (int i = 0; i < i_end; i++)
       {
         gloabl_traj[i] = planner_manager_->traj_.global_traj.traj.getPos(i * step_size_t);
       }
 
+      // 开启标志位，状态机转为其他状态
       have_target_ = true;
       have_new_target_ = true;
       // have_trigger_ = true;
