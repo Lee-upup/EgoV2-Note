@@ -73,6 +73,7 @@ namespace ego_planner
       }
       else
       {
+        // 产生一个随机中间点
         Eigen::Vector3d horizen_dir = ((start_pt - local_target_pt).cross(Eigen::Vector3d(0, 0, 1))).normalized();
         Eigen::Vector3d vertical_dir = ((start_pt - local_target_pt).cross(horizen_dir)).normalized();
         innerPs.resize(3, 1);
@@ -84,17 +85,20 @@ namespace ego_planner
                       (start_pt - local_target_pt).norm() *
                       vertical_dir * 0.4 * (-0.978 / (continous_failures_count_ + 0.989) + 0.989);
 
+        // 两段轨迹，每段时间1s
         piece_nums = 2;
         piece_dur_vec.resize(2);
         piece_dur_vec = Eigen::Vector2d(init_of_init_totaldur / 2, init_of_init_totaldur / 2);
       }
 
       /* generate the init of init trajectory */
+      // 该轨迹不是实际用于优化的轨迹，作用是：依据每段轨迹的长度，采样实际轨迹的内部点innerPs
       initMJO.reset(headState, tailState, piece_nums);
       initMJO.generate(innerPs, piece_dur_vec);
       poly_traj::Trajectory initTraj = initMJO.getTraj();
 
       /* generate the real init trajectory */
+      // 依据初末状态的距离，和每段轨迹的长度，得到轨迹段数
       piece_nums = round((headState.col(0) - tailState.col(0)).norm() / pp_.polyTraj_piece_length);
       if (piece_nums < 2)
         piece_nums = 2;
@@ -132,6 +136,7 @@ namespace ego_planner
         ROS_INFO("t_to_lc_end < 0, exit and wait for another call.");
         return false;
       }
+      // 这个t_to_lc_tgt没懂
       double t_to_lc_tgt = t_to_lc_end +
                            (traj_.global_traj.glb_t_of_lc_tgt - traj_.global_traj.last_glb_t_of_lc_tgt);
       int piece_nums = ceil((start_pt - local_target_pt).norm() / pp_.polyTraj_piece_length);
@@ -179,6 +184,7 @@ namespace ego_planner
     double t;
     touch_goal = false;
 
+    // 记录上一个local target的时间戳
     traj_.global_traj.last_glb_t_of_lc_tgt = traj_.global_traj.glb_t_of_lc_tgt;
 
     double t_step = planning_horizen / 20 / pp_.max_vel_;
@@ -205,6 +211,7 @@ namespace ego_planner
       touch_goal = true;
     }
 
+    // 即将到终点
     if ((global_end_pt - local_target_pos).norm() < (pp_.max_vel_ * pp_.max_vel_) / (2 * pp_.max_acc_))
     {
       local_target_vel = Eigen::Vector3d::Zero();
@@ -242,7 +249,9 @@ namespace ego_planner
     // cout << "start: " << start_pt.transpose() << ", " << start_vel.transpose() << "\ngoal:" << local_target_pt.transpose() << ", " << local_target_vel.transpose()
     //      << endl;
 
+    // 若轨迹接近终点，会采用其他的优化策略
     ploy_traj_opt_->setIfTouchGoal(touch_goal);
+    // 针对编队，设置编队起始点和终止点
     ploy_traj_opt_->setFStartFEnd(formation_start_pt, formation_end_pt);
 
     if ((start_pt - local_target_pt).norm() < 0.2)
@@ -256,8 +265,10 @@ namespace ego_planner
     ros::Duration t_init, t_opt;
 
     /*** STEP 1: INIT ***/
+    // 每段轨迹的时间
     double ts = pp_.polyTraj_piece_length / pp_.max_vel_;
 
+    //  
     poly_traj::MinJerkOpt initMJO;
     if (!computeInitState(start_pt, start_vel, start_acc, local_target_pt, local_target_vel,
                           flag_polyInit, flag_randomPolyTraj, ts, initMJO))
@@ -265,6 +276,8 @@ namespace ego_planner
       return false;
     }
 
+    // ploy_traj_opt_->get_cps_num_prePiece_() return constraint_points_perPiece
+    // initMJO已经有了轨迹段数，中间点，初末状态。 这里给每段轨迹加入N个约束点
     Eigen::MatrixXd cstr_pts = initMJO.getInitConstraintPoints(ploy_traj_opt_->get_cps_num_prePiece_());
     vector<std::pair<int, int>> segments;
     if (ploy_traj_opt_->finelyCheckAndSetConstraintPoints(segments, initMJO, true) == PolyTrajOptimizer::CHK_RET::ERR)
@@ -285,7 +298,7 @@ namespace ego_planner
     bool flag_success = false;
     vector<vector<Eigen::Vector3d>> vis_trajs;
     poly_traj::MinJerkOpt best_MJO;
-
+  
     if (pp_.use_distinctive_trajs)
     {
       std::vector<ConstraintPoints> trajs = ploy_traj_opt_->distinctiveTrajs(segments);

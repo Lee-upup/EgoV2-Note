@@ -155,7 +155,7 @@ namespace ego_planner
       // 每个无人机需要等待前一个无人机规划出轨迹后再启动，避免碰撞
       if (planner_manager_->pp_.drone_id <= 0 || (planner_manager_->pp_.drone_id >= 1 && have_recv_pre_agent_))
       {
-        // 
+        // 之前有了初始全局轨迹，这里开始优化
         bool success = planFromGlobalTraj(10); // zx-todo
         if (success)
         {
@@ -556,7 +556,7 @@ namespace ego_planner
 
   bool EGOReplanFSM::callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj)
   {
-
+    // 得到local_target_pt_， local_target_vel_， 和touch_goal_（轨迹是否接近终点）
     planner_manager_->getLocalTarget(
         planning_horizen_, start_pt_, end_pt_,
         local_target_pt_, local_target_vel_,

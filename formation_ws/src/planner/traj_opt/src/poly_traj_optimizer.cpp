@@ -1450,12 +1450,16 @@ namespace ego_planner
         gradp += -wei_obs_ * 3.0 * dist_err * dist_err * dist_grad;
       }
 
+      // obs_clearance_soft_ = 0.5 是一个弱约束
+      // dist_err_soft > 0 时，距离障碍的距离小于0.5
       if (dist_err_soft > 0)
       {
         ret = true;
         double r = 0.05;
         double rsqr = r * r;
+        // term 和 rsqr 是一个平滑函数和平滑率，用来构造一个可微的代价函数
         double term = sqrt(1.0 + dist_err_soft * dist_err_soft / rsqr);
+        // costp没懂 gradp是costp的导数
         costp += wei_obs_soft_ * rsqr * (term - 1.0);
         gradp += -wei_obs_soft_ * dist_err_soft / term * dist_grad;
       }
@@ -1524,7 +1528,10 @@ namespace ego_planner
 
         Eigen::Vector3d dJ_dP = wei_swarm_ * 3 * dist2_err2 * (-2) * Eigen::Vector3d(inv_b2 * dist_vec(0), inv_b2 * dist_vec(1), inv_a2 * dist_vec(2));
         gradp += dJ_dP;
+
+        // gradt ： 时间梯度
         gradt += dJ_dP.dot(v - swarm_v);
+        // gradt ： 前一时刻的时间梯度
         grad_prev_t += dJ_dP.dot(-swarm_v);
       }
 
